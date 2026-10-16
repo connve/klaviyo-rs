@@ -1,0 +1,180 @@
+[package]
+name = "klaviyo"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description.workspace = true
+repository.workspace = true
+documentation.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[lib]
+name = "klaviyo"
+path = "src/lib.rs"
+
+[lints]
+workspace = true
+
+[features]
+default = []
+accounts = ["_api"]
+campaigns = ["_write"]
+events = ["_write"]
+flows = ["_write"]
+lists = ["_write"]
+metrics = ["_write"]
+profiles = ["_write"]
+reporting = ["_write"]
+segments = ["_api"]
+templates = ["_write"]
+trace = ["dep:tracing", "tracing/attributes"]
+# Internal: enabled by every API feature. Gates the shared request plumbing,
+# which is unused when no API is enabled. Not meant to be enabled directly.
+_api = []
+# Internal: enabled by every API feature with a request body. Gates the body
+# serialization, which read-only APIs don't use. Not meant to be enabled
+# directly.
+_write = ["_api"]
+
+[dependencies]
+klaviyo_generated = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+url = { workspace = true }
+tracing = { workspace = true, optional = true }
+chrono = { workspace = true }
+secrecy = { workspace = true }
+
+[dev-dependencies]
+chrono = { workspace = true, features = ["now"] }
+tracing-subscriber = { workspace = true }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+anyhow = { workspace = true }
+wiremock = { workspace = true }
+serde_json = { workspace = true }
+
+[[example]]
+name = "fan_out_campaign"
+path = "../examples/klaviyo/fan_out_campaign.rs"
+required-features = ["campaigns", "templates", "lists"]
+
+[[example]]
+name = "track_event"
+path = "../examples/klaviyo/track_event.rs"
+required-features = ["events"]
+
+[[test]]
+name = "accounts"
+path = "tests/accounts.rs"
+required-features = ["accounts"]
+
+[[test]]
+name = "mock_accounts"
+path = "tests/mock_accounts.rs"
+required-features = ["accounts"]
+
+[[test]]
+name = "campaigns"
+path = "tests/campaigns.rs"
+required-features = ["campaigns"]
+
+[[test]]
+name = "mock_campaigns"
+path = "tests/mock_campaigns.rs"
+required-features = ["campaigns"]
+
+[[test]]
+name = "fan_out"
+path = "tests/fan_out.rs"
+required-features = ["campaigns", "templates", "lists"]
+
+[[test]]
+name = "events"
+path = "tests/events.rs"
+required-features = ["events"]
+
+[[test]]
+name = "mock_events"
+path = "tests/mock_events.rs"
+required-features = ["events"]
+
+[[test]]
+name = "flows"
+path = "tests/flows.rs"
+required-features = ["flows"]
+
+[[test]]
+name = "mock_flows"
+path = "tests/mock_flows.rs"
+required-features = ["flows"]
+
+[[test]]
+name = "lists"
+path = "tests/lists.rs"
+required-features = ["lists"]
+
+[[test]]
+name = "mock_lists"
+path = "tests/mock_lists.rs"
+required-features = ["lists"]
+
+[[test]]
+name = "metrics"
+path = "tests/metrics.rs"
+required-features = ["metrics"]
+
+[[test]]
+name = "mock_metrics"
+path = "tests/mock_metrics.rs"
+required-features = ["metrics"]
+
+[[test]]
+name = "profiles"
+path = "tests/profiles.rs"
+required-features = ["profiles"]
+
+[[test]]
+name = "mock_profiles"
+path = "tests/mock_profiles.rs"
+required-features = ["profiles"]
+
+[[test]]
+name = "reporting"
+path = "tests/reporting.rs"
+required-features = ["reporting", "metrics"]
+
+[[test]]
+name = "mock_reporting"
+path = "tests/mock_reporting.rs"
+required-features = ["reporting"]
+
+[[test]]
+name = "segments"
+path = "tests/segments.rs"
+required-features = ["segments"]
+
+[[test]]
+name = "mock_segments"
+path = "tests/mock_segments.rs"
+required-features = ["segments"]
+
+[[test]]
+name = "templates"
+path = "tests/templates.rs"
+required-features = ["templates"]
+
+[[test]]
+name = "mock_templates"
+path = "tests/mock_templates.rs"
+required-features = ["templates"]

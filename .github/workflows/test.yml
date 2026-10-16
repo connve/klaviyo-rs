@@ -1,0 +1,107 @@
+name: Test
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+jobs:
+  test-rust-latest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # rustup installs the toolchain pinned in `rust-toolchain.toml` on the
+      # first cargo call.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+      - name: Build and test
+        run: |
+          cargo build --verbose --all-features --workspace
+          cargo test --verbose --all-features --workspace
+
+  integration-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      # rustup installs the toolchain pinned in `rust-toolchain.toml` on the
+      # first cargo call.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+      # Fails rather than skips without the secret, so a missing or removed
+      # secret can't turn this job green. Fork PRs never get here.
+      - name: Check the API key secret
+        env:
+          KLAVIYO_API_KEY: ${{ secrets.KLAVIYO_API_KEY }}
+        run: |
+          if [ -z "$KLAVIYO_API_KEY" ]; then
+            echo "::error::KLAVIYO_API_KEY secret is not set"
+            exit 1
+          fi
+      - name: Run integration tests
+        env:
+          KLAVIYO_API_KEY: ${{ secrets.KLAVIYO_API_KEY }}
+        # The live tests are `#[ignore]`d; `--ignored` runs only them, since
+        # the mocks already ran in `test-rust-latest`. `--test '*'` picks up
+        # every file under `klaviyo/tests/` without editing this workflow.
+        run: cargo test --verbose --all-features -p klaviyo --test '*' -- --ignored
+
+  test-rust-nightly:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      # Explicit nightly override — `rust-toolchain.toml` pins stable, but
+      # this job intentionally exercises the nightly channel.
+      - uses: dtolnay/rust-toolchain@nightly
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+      - name: Build and test
+        run: |
+          cargo +nightly build --verbose --all-features --workspace
+          cargo +nightly test --verbose --all-features --workspace
+
+  # Enforces the `rust-version` (MSRV) declared in `Cargo.toml` by
+  # compiling the workspace with that exact toolchain. Without this job the
+  # field is a promise, not a contract — a dependency bump that raises the
+  # minimum would only be caught by a downstream consumer building on an
+  # older Rust.
+  test-msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.88"
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+      - name: Compile with MSRV
+        run: cargo +1.88 check --workspace --all-targets --all-features --locked --verbose
+
+  # Builds each crate on its own, like `cargo publish`.
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # rustup installs the toolchain pinned in `rust-toolchain.toml` on the
+      # first cargo call.
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+      - name: Package and verify each crate
+        run: cargo package --workspace --locked

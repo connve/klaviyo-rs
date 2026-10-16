@@ -1,0 +1,114 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  detect-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.detect-and-tag.outputs.tag }}
+      previous-tag: ${{ steps.detect-and-tag.outputs.previous-tag }}
+      version-changed: ${{ steps.detect-and-tag.outputs.tag != '' && steps.detect-and-tag.outputs.tag != steps.detect-and-tag.outputs.previous-tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from workspace Cargo.toml
+        id: version
+        run: |
+          VERSION=$(grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Detect and tag new version
+        id: detect-and-tag
+        uses: salsify/action-detect-and-tag-new-version@v2
+        with:
+          version-command: |
+            grep '^version = ' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/'
+
+  create-release:
+    needs: detect-version
+    if: needs.detect-version.outputs.version-changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changelog for version
+        id: changelog
+        run: |
+          VERSION="${{ needs.detect-version.outputs.version }}"
+          # Extract the section for the current version from CHANGELOG.md.
+          # Matches from "## [VERSION]" until the next "## " header or end of file.
+          CHANGELOG=$(awk "/^## \[${VERSION}\]/{found=1; next} /^## /{if(found) exit} found{print}" CHANGELOG.md)
+
+          if [ -z "$CHANGELOG" ]; then
+            # Fall back to git log if no CHANGELOG.md entry exists for this version.
+            if [ -z "${{ needs.detect-version.outputs.previous-tag }}" ]; then
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges -1)
+            else
+              CHANGELOG=$(git log --pretty=format:"- %s (%h)" --no-merges ${{ needs.detect-version.outputs.previous-tag }}..${{ needs.detect-version.outputs.tag }})
+            fi
+          fi
+
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.detect-version.outputs.tag }}
+          CHANGELOG: ${{ steps.changelog.outputs.changelog }}
+        run: |
+          printf '%s\n' "$CHANGELOG" > release-notes.md
+          gh release create "$TAG" \
+            --title "Release $TAG" \
+            --notes-file release-notes.md
+
+  publish:
+    needs: [detect-version, create-release]
+    if: needs.detect-version.outputs.version-changed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -qq
+          sudo apt-get -qq install pkg-config libssl-dev git
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          cargo install cargo-workspaces
+          cargo workspaces publish --from-git --allow-dirty --yes --publish-interval 30

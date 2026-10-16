@@ -1,0 +1,42 @@
+[package]
+name = "klaviyo_generated"
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Generated Klaviyo REST API client (used by klaviyo)"
+repository.workspace = true
+documentation.workspace = true
+publish.workspace = true
+
+[lib]
+name = "klaviyo_generated"
+path = "src/lib.rs"
+
+# Not `workspace = true`: the code is emitted by progenitor, so the workspace
+# lints would fail on output we don't control.
+[lints.rust]
+dead_code = "allow"
+unused_imports = "allow"
+
+[lints.clippy]
+all = "allow"
+
+[lints.rustdoc]
+broken_intra_doc_links = "allow"
+bare_urls = "allow"
+invalid_html_tags = "allow"
+
+[dependencies]
+progenitor-client = { workspace = true }
+reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+
+[build-dependencies]
+progenitor = { workspace = true }
+openapiv3 = { workspace = true }
+serde_json = { workspace = true }
+heck = { workspace = true }

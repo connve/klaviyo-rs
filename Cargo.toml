@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = ["klaviyo", "generated/klaviyo"]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["CONNVE"]
+license = "MPL-2.0"
+edition = "2021"
+rust-version = "1.88"
+description = "Unofficial Rust SDK for Klaviyo APIs"
+repository = "https://github.com/connve/klaviyo-rs"
+documentation = "https://docs.rs/klaviyo"
+readme = "README.md"
+keywords = ["klaviyo", "sdk", "api", "email", "marketing"]
+categories = ["api-bindings", "asynchronous"]
+publish = true
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+# Suppressions must use `#[expect(lint, reason = "...")]`, which clippy reports
+# as unfulfilled once the underlying lint stops firing. A plain `#[allow]`
+# stays silent forever, so an obsolete suppression is never noticed.
+allow_attributes = "deny"
+allow_attributes_without_reason = "deny"
+
+[workspace.dependencies]
+klaviyo_generated = { path = "generated/klaviyo", version = "=0.1.0" }
+tokio = { version = "1.48", default-features = false, features = [
+    "macros",
+    "rt-multi-thread",
+    "sync",
+] }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["std"] }
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "rustls",
+] }
+thiserror = { version = "2.0", default-features = false, features = ["std"] }
+secrecy = { version = "0.10", default-features = false, features = ["serde"] }
+url = { version = "2.5", default-features = false }
+tracing = { version = "0.1", default-features = false, features = ["std"] }
+tracing-subscriber = { version = "0.3", default-features = false, features = [
+    "fmt",
+    "ansi",
+] }
+chrono = { version = "0.4", default-features = false, features = [
+    "serde",
+    "std",
+] }
+anyhow = { version = "1.0", default-features = false, features = ["std"] }
+progenitor = "0.13"
+progenitor-client = "0.13"
+openapiv3 = { version = "2.2", default-features = false }
+heck = "0.5"
+wiremock = "0.6"

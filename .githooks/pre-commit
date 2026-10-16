@@ -1,0 +1,74 @@
+#!/bin/sh
+# Pre-commit hook to check formatting, run clippy, tests, and cargo audit.
+#
+# Pins to the `stable` toolchain explicitly so this hook agrees with CI even
+# when a developer's default `rustup` toolchain is nightly. The repo's
+# `rust-toolchain.toml` already selects stable, so this only matters if that
+# file is missing or overridden.
+TOOLCHAIN=stable
+
+# The checks below run on the working tree. Refuse to run when it differs from
+# what is being committed, so a passing hook means the commit itself passes.
+if ! git diff --quiet || [ -n "$(git ls-files --others --exclude-standard -- '*.rs' '*.toml' '*.json')" ]; then
+    echo "Error: unstaged changes or untracked source files. The hook checks the"
+    echo "working tree, so it would not be checking what you commit."
+    echo "Stage them, or run 'git stash push --keep-index --include-untracked' first."
+    exit 1
+fi
+
+# Check rather than reformat: re-staging formatted files would also commit
+# unstaged hunks of partially staged files.
+echo "Checking formatting (+$TOOLCHAIN)..."
+if ! cargo "+$TOOLCHAIN" fmt --all -- --check; then
+    echo ""
+    echo "Error: Code is not formatted. Run 'cargo fmt --all', stage the result, and commit again."
+    exit 1
+fi
+
+if command -v cargo-hack >/dev/null 2>&1; then
+    echo "Running cargo clippy, each feature (+$TOOLCHAIN)..."
+    cargo "+$TOOLCHAIN" hack clippy -p klaviyo --each-feature --skip _api,_write --all-targets -- -D warnings
+else
+    echo "Warning: cargo-hack not installed. Checking only the no-feature build;"
+    echo "CI also checks each feature. Install with: cargo install cargo-hack"
+    echo "Running cargo clippy, no API features (+$TOOLCHAIN)..."
+    cargo "+$TOOLCHAIN" clippy --workspace --all-targets -- -D warnings
+fi
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Error: Clippy found issues. Please fix them before committing."
+    exit 1
+fi
+
+echo "Running cargo clippy, all features (+$TOOLCHAIN)..."
+cargo "+$TOOLCHAIN" clippy --workspace --all-targets --all-features -- -D warnings
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Error: Clippy found issues. Please fix them before committing."
+    exit 1
+fi
+
+echo "Running cargo test (+$TOOLCHAIN)..."
+cargo "+$TOOLCHAIN" test --workspace --all-features
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Error: Tests failed. Please fix them before committing."
+    exit 1
+fi
+
+# Check if cargo-audit is installed
+if command -v cargo-audit >/dev/null 2>&1; then
+    echo "Running cargo audit..."
+    # Ignored advisories, if any, are listed in .cargo/audit.toml.
+    cargo audit
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo "Error: Security vulnerabilities found. Please fix them before committing."
+        exit 1
+    fi
+else
+    echo "Warning: cargo-audit not installed. Skipping security audit."
+    echo "Install with: cargo install cargo-audit"
+fi
+
+exit 0
