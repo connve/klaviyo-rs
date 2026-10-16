@@ -8,12 +8,17 @@
 
 mod common;
 
+use std::time::Duration;
+
 use klaviyo::{types, Client};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// Text put into the template and preview text, to recognise them later.
 const MARKER: &str = "klaviyo-rs fan-out marker";
+
+/// How often to look for the assigned template, one second apart.
+const TEMPLATE_ATTEMPTS: u32 = 10;
 
 #[tokio::test]
 #[ignore = "needs a Klaviyo test account key in KLAVIYO_API_KEY"]
@@ -114,15 +119,7 @@ async fn draft_campaign(client: &Client, name: &str, list_id: &str, template_id:
             .assign_template(&message.id, template_id)
             .send()
             .await?;
-        let assigned = client
-            .campaigns()
-            .message_template(&message.id)
-            .send()
-            .await?;
-        let html = match assigned.data {
-            Some(template) => template.attributes.html,
-            None => return Err("the message has no template".into()),
-        };
+        let html = assigned_template_html(client, &message.id).await?;
         ensure!(html.contains(MARKER), "assigned template: {html}");
 
         let campaign = client.campaigns().get(&campaign_id).send().await?;
@@ -140,4 +137,19 @@ async fn draft_campaign(client: &Client, name: &str, list_id: &str, template_id:
     checks?;
     cleanup?;
     Ok(())
+}
+
+async fn assigned_template_html(client: &Client, message_id: &str) -> Result<String> {
+    for _ in 0..TEMPLATE_ATTEMPTS {
+        let assigned = client
+            .campaigns()
+            .message_template(message_id)
+            .send()
+            .await?;
+        match assigned.data {
+            Some(template) => return Ok(template.attributes.html),
+            None => tokio::time::sleep(Duration::from_secs(1)).await,
+        }
+    }
+    Err(format!("the message has no template after {TEMPLATE_ATTEMPTS} attempts").into())
 }
