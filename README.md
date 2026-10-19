@@ -11,92 +11,35 @@ Unofficial Rust SDK for Klaviyo APIs.
 
 > Not affiliated with or endorsed by Klaviyo, Inc.
 
-## Workspace layout
-
-```
-klaviyo-rs/
-├── klaviyo/                # User-facing crate
-├── generated/
-│   └── klaviyo/            # progenitor-generated types + Klaviyo's openapi.json
-└── examples/
-    └── klaviyo/            # Runnable examples
-```
-
 ## Quick start
-
-Every API sits behind a Cargo feature; none are enabled by default.
 
 ```toml
 [dependencies]
-klaviyo = { version = "0.1", features = ["campaigns", "profiles"] }
+klaviyo = { version = "0.2", features = ["campaigns", "profiles"] }
 ```
 
 ```rust
-use klaviyo::Client;
-
-let client = Client::builder()
-    .api_key(std::env::var("KLAVIYO_API_KEY")?)
+let client = klaviyo::Client::builder()
+    .api_key(api_key)
     .build()?;
-
-let drafts = client
-    .campaigns()
-    .list("and(equals(messages.channel,'email'),equals(status,'Draft'))")
-    .send()
-    .await?;
-
-let mut pages = client.profiles().list().page_size(100).pages();
-while let Some(page) = pages.next_page().await {
-    for profile in page?.data {
-        println!("{:?}", profile.id);
-    }
-}
-```
-
-## Credentials
-
-The client takes a private API key (`pk_...`), created under *Settings → API
-keys*. Where the key comes from is up to the application: `Credentials`
-deserializes from `{ "api_key": "pk_..." }` for config files and secret
-stores.
-
-A key belongs to one account, so use one `Client` per account.
-
-## Examples
-
-```bash
-# One master email → a draft campaign in each market's account. Sends nothing.
-cargo run --example fan_out_campaign --features campaigns,templates,lists -- markets.json
-
-export KLAVIYO_API_KEY=pk_...
-cargo run --example track_event --features events -- ada@example.com ORDER-1001 129.90
 ```
 
 ## Coverage
 
 API revision `2026-07-15`.
 
-| API | Feature | Endpoints |
+| API | Feature | Methods |
 | --- | --- | --- |
-| Accounts | `accounts` | `GET /api/accounts`, `GET /api/accounts/{id}` |
-| Campaigns | `campaigns` | `GET/POST /api/campaigns`, `GET/PATCH/DELETE /api/campaigns/{id}`, `POST /api/campaign-clone` |
-| Campaigns | `campaigns` | `GET /api/campaigns/{id}/campaign-messages`, `GET/PATCH /api/campaign-messages/{id}`, `GET /api/campaign-messages/{id}/template` |
-| Campaigns | `campaigns` | `POST /api/campaign-message-assign-template` |
-| Campaigns | `campaigns` | `POST /api/campaign-send-jobs`, `GET/PATCH /api/campaign-send-jobs/{id}` |
-| Campaigns | `campaigns` | `POST /api/campaign-recipient-estimation-jobs`, `GET .../{id}`, `GET /api/campaign-recipient-estimations/{id}` |
-| Events | `events` | `GET/POST /api/events`, `GET /api/events/{id}`, `POST /api/event-bulk-create-jobs` |
-| Flows | `flows` | `GET /api/flows`, `GET/PATCH /api/flows/{id}` |
-| Lists | `lists` | `GET/POST /api/lists`, `GET/PATCH/DELETE /api/lists/{id}` |
-| Lists | `lists` | `GET /api/lists/{id}/profiles`, `POST/DELETE /api/lists/{id}/relationships/profiles` |
-| Metrics | `metrics` | `GET /api/metrics`, `GET /api/metrics/{id}`, `POST /api/metric-aggregates` |
-| Profiles | `profiles` | `GET/POST /api/profiles`, `GET/PATCH /api/profiles/{id}`, `POST /api/profile-import` |
-| Profiles | `profiles` | `POST /api/profile-bulk-import-jobs`, `GET .../{id}`, `GET .../{id}/import-errors` |
-| Profiles | `profiles` | `POST /api/profile-subscription-bulk-{create,delete}-jobs`, `POST /api/profile-suppression-bulk-{create,delete}-jobs` |
-| Reporting | `reporting` | `POST /api/campaign-values-reports`, `POST /api/flow-values-reports`, `POST /api/flow-series-reports` |
-| Segments | `segments` | `GET /api/segments`, `GET /api/segments/{id}`, `GET /api/segments/{id}/profiles` |
-| Templates | `templates` | `GET/POST /api/templates`, `GET/PATCH/DELETE /api/templates/{id}`, `POST /api/template-render`, `POST /api/template-clone` |
-| Templates | `templates` | `GET/POST /api/template-universal-content`, `GET/PATCH/DELETE .../{id}` |
-
-Catalogs, coupons, web feeds, images, tags and webhooks aren't covered yet.
+| Accounts | `accounts` | [`list`](https://developers.klaviyo.com/en/reference/get_accounts), [`get`](https://developers.klaviyo.com/en/reference/get_account) |
+| Campaigns | `campaigns` | [`list`](https://developers.klaviyo.com/en/reference/get_campaigns), [`get`](https://developers.klaviyo.com/en/reference/get_campaign), [`create`](https://developers.klaviyo.com/en/reference/create_campaign), [`update`](https://developers.klaviyo.com/en/reference/update_campaign), [`delete`](https://developers.klaviyo.com/en/reference/delete_campaign), [`clone_campaign`](https://developers.klaviyo.com/en/reference/create_campaign_clone), [`messages`](https://developers.klaviyo.com/en/reference/get_messages_for_campaign), [`get_message`](https://developers.klaviyo.com/en/reference/get_campaign_message), [`update_message`](https://developers.klaviyo.com/en/reference/update_campaign_message), [`assign_template`](https://developers.klaviyo.com/en/reference/assign_template_to_campaign_message), [`message_template`](https://developers.klaviyo.com/en/reference/get_template_for_campaign_message), [`send`](https://developers.klaviyo.com/en/reference/send_campaign), [`get_send_job`](https://developers.klaviyo.com/en/reference/get_campaign_send_job), [`cancel_send`](https://developers.klaviyo.com/en/reference/cancel_campaign_send), [`refresh_recipient_estimation`](https://developers.klaviyo.com/en/reference/refresh_campaign_recipient_estimation), [`get_recipient_estimation_job`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation_job), [`get_recipient_estimation`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation) |
+| Events | `events` | [`list`](https://developers.klaviyo.com/en/reference/get_events), [`get`](https://developers.klaviyo.com/en/reference/get_event), [`create`](https://developers.klaviyo.com/en/reference/create_event), [`bulk_create`](https://developers.klaviyo.com/en/reference/bulk_create_events) |
+| Flows | `flows` | [`list`](https://developers.klaviyo.com/en/reference/get_flows), [`get`](https://developers.klaviyo.com/en/reference/get_flow), [`update`](https://developers.klaviyo.com/en/reference/update_flow) |
+| Lists | `lists` | [`list`](https://developers.klaviyo.com/en/reference/get_lists), [`get`](https://developers.klaviyo.com/en/reference/get_list), [`create`](https://developers.klaviyo.com/en/reference/create_list), [`update`](https://developers.klaviyo.com/en/reference/update_list), [`delete`](https://developers.klaviyo.com/en/reference/delete_list), [`profiles`](https://developers.klaviyo.com/en/reference/get_profiles_for_list), [`add_profiles`](https://developers.klaviyo.com/en/reference/add_profiles_to_list), [`remove_profiles`](https://developers.klaviyo.com/en/reference/remove_profiles_from_list) |
+| Metrics | `metrics` | [`list`](https://developers.klaviyo.com/en/reference/get_metrics), [`get`](https://developers.klaviyo.com/en/reference/get_metric), [`query_aggregates`](https://developers.klaviyo.com/en/reference/query_metric_aggregates) |
+| Profiles | `profiles` | [`list`](https://developers.klaviyo.com/en/reference/get_profiles), [`get`](https://developers.klaviyo.com/en/reference/get_profile), [`create`](https://developers.klaviyo.com/en/reference/create_profile), [`update`](https://developers.klaviyo.com/en/reference/update_profile), [`upsert`](https://developers.klaviyo.com/en/reference/create_or_update_profile), [`bulk_import`](https://developers.klaviyo.com/en/reference/bulk_import_profiles), [`get_bulk_import_job`](https://developers.klaviyo.com/en/reference/get_bulk_import_profiles_job), [`bulk_import_errors`](https://developers.klaviyo.com/en/reference/get_errors_for_bulk_import_profiles_job), [`subscribe`](https://developers.klaviyo.com/en/reference/bulk_subscribe_profiles), [`unsubscribe`](https://developers.klaviyo.com/en/reference/bulk_unsubscribe_profiles), [`suppress`](https://developers.klaviyo.com/en/reference/bulk_suppress_profiles), [`unsuppress`](https://developers.klaviyo.com/en/reference/bulk_unsuppress_profiles) |
+| Reporting | `reporting` | [`campaign_values`](https://developers.klaviyo.com/en/reference/query_campaign_values), [`flow_values`](https://developers.klaviyo.com/en/reference/query_flow_values), [`flow_series`](https://developers.klaviyo.com/en/reference/query_flow_series) |
+| Segments | `segments` | [`list`](https://developers.klaviyo.com/en/reference/get_segments), [`get`](https://developers.klaviyo.com/en/reference/get_segment), [`profiles`](https://developers.klaviyo.com/en/reference/get_profiles_for_segment) |
+| Templates | `templates` | [`list`](https://developers.klaviyo.com/en/reference/get_templates), [`get`](https://developers.klaviyo.com/en/reference/get_template), [`create`](https://developers.klaviyo.com/en/reference/create_template), [`update`](https://developers.klaviyo.com/en/reference/update_template), [`delete`](https://developers.klaviyo.com/en/reference/delete_template), [`render`](https://developers.klaviyo.com/en/reference/render_template), [`clone_template`](https://developers.klaviyo.com/en/reference/clone_template), [`list_universal_content`](https://developers.klaviyo.com/en/reference/get_all_universal_content), [`get_universal_content`](https://developers.klaviyo.com/en/reference/get_universal_content), [`create_universal_content`](https://developers.klaviyo.com/en/reference/create_universal_content), [`update_universal_content`](https://developers.klaviyo.com/en/reference/update_universal_content), [`delete_universal_content`](https://developers.klaviyo.com/en/reference/delete_universal_content) |
 
 ## Contributing
 

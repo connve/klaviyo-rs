@@ -34,7 +34,7 @@
 //! - `trace` — `#[tracing::instrument]` on public async methods.
 //!
 //! ```toml
-//! klaviyo = { version = "0.1", features = ["campaigns", "templates"] }
+//! klaviyo = { version = "0.2", features = ["campaigns", "templates"] }
 //! ```
 
 #![deny(missing_docs)]
