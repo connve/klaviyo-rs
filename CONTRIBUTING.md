@@ -168,9 +168,12 @@ personal data. `ApiError` keeps unknown fields in `extra`.
 ## Dependencies
 
 - All versions live in the root `[workspace.dependencies]`.
-- `klaviyo_generated` is pinned with `=x.y.z`; a release bumps both.
+- `klaviyo_generated` is pinned with `=x.y.z`. The bump command below updates
+  the pin too.
 - `tokio` is a dev-dependency only.
-- MSRV is 1.88.
+- MSRV is 1.88, the minimum required by `progenitor` 0.13. Raise it only when
+  a dependency requires it, together with the `test-msrv` job and a CHANGELOG
+  entry.
 - Every single-feature build must pass clippy without `#[expect]`; gate
   shared code on `_api` / `_write`.
 
@@ -200,5 +203,5 @@ git config core.hooksPath .githooks
 ## Releases
 
 Conventional commits (`feat:`, `fix:`, `chore:`). Bump with
-`cargo workspaces version --no-git-commit --yes <minor|patch>` and merge to
-`main`; the release workflow tags and publishes.
+`cargo workspaces version --no-git-commit --yes --exact --force '*' <minor|patch>`
+and merge to `main`; the release workflow tags and publishes.

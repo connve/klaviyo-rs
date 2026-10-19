@@ -4,6 +4,12 @@ All notable changes are documented here. Format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.2.0]
+
+### Changed
+- README lists the SDK methods per feature, each linked to Klaviyo's API reference.
+- Releases bump both crates together and keep the `=x.y.z` pin on `klaviyo_generated` in step.
+
 ## [0.1.0]
 
 ### Added
