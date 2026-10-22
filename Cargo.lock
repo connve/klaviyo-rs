@@ -736,7 +736,7 @@ dependencies = [
 
 [[package]]
 name = "klaviyo"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "klaviyo_generated"
-version = "0.3.0"
+version = "0.4.0"
 dependencies = [
  "chrono",
  "heck",

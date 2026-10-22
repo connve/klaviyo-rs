@@ -15,7 +15,7 @@ Unofficial Rust SDK for Klaviyo APIs.
 
 ```toml
 [dependencies]
-klaviyo = { version = "0.3", features = ["campaigns", "profiles"] }
+klaviyo = { version = "0.4", features = ["campaigns", "profiles"] }
 ```
 
 ```rust

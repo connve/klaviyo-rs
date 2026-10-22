@@ -106,6 +106,11 @@ const SCHEMA_REF_PREFIX: &str = "#/components/schemas/";
 /// The component every 4XX and 5XX response is pointed at.
 const ERROR_SCHEMA: &str = "ErrorDocument";
 
+/// Components generated as `serde_json::Value`. Klaviyo returns drag-and-drop
+/// template definitions that the generated types reject, and a fetched
+/// definition must pass back into a request unchanged.
+const UNTYPED: &[&str] = &["TemplateDefinition"];
+
 type BuildResult<T> = Result<T, Box<dyn std::error::Error>>;
 
 fn main() -> BuildResult<()> {
@@ -116,6 +121,7 @@ fn main() -> BuildResult<()> {
     let operations = operation_markers(&spec)?;
     rewrite_media_types(&mut spec);
     name_error_schema(&mut spec)?;
+    untype_refs(&mut spec);
     prune_schemas(&mut spec);
     default_single_value_enums(&mut spec);
     let request_schemas = hoist_request_objects(&mut spec);
@@ -581,6 +587,23 @@ fn unique_name(name: String, taken: &Map<String, Value>, hoisted: &[(String, Val
             return candidate;
         }
         n += 1;
+    }
+}
+
+/// The untyped components are then unreachable, and pruned.
+fn untype_refs(value: &mut Value) {
+    if schema_ref(value).is_some_and(|name| UNTYPED.contains(&name)) {
+        let mut untyped = Map::new();
+        if let Some(description) = value.get("description") {
+            untyped.insert("description".to_owned(), description.clone());
+        }
+        *value = Value::Object(untyped);
+        return;
+    }
+    match value {
+        Value::Object(map) => map.values_mut().for_each(untype_refs),
+        Value::Array(items) => items.iter_mut().for_each(untype_refs),
+        _ => {}
     }
 }
 

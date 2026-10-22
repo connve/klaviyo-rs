@@ -47,15 +47,17 @@ Don't edit it or the generated output; change `build.rs`, which:
 4. Points 4XX/5XX responses at one `ErrorDocument` schema. Left inline,
    progenitor names them `<OperationId>Response`, colliding with success
    schemas such as `GetAccountResponse`.
-5. Prunes unreachable schemas.
-6. Gives single-value enums (JSON:API `type`) a `default`, so they implement
+5. Types the components in `UNTYPED` as `serde_json::Value`. Klaviyo returns
+   drag-and-drop template definitions that the generated types reject.
+6. Prunes unreachable schemas.
+7. Gives single-value enums (JSON:API `type`) a `default`, so they implement
    `Default`.
-7. Hoists inline objects in request bodies into named components, with the
+8. Hoists inline objects in request bodies into named components, with the
    names typify would use, so they can be patched.
-8. Strips `default` from optional request properties; typify would always
+9. Strips `default` from optional request properties; typify would always
    serialize them.
-9. Patches `Default` onto request objects whose required fields all
-   implement it.
+10. Patches `Default` onto request objects whose required fields all
+    implement it.
 
 ### Upgrading the API revision
 
