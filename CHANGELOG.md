@@ -4,6 +4,14 @@ All notable changes are documented here. Format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+## [0.4.0]
+
+### Changed
+- A template's `definition` is `serde_json::Value` in requests and responses, replacing the generated `TemplateDefinition` types. A fetched definition passes back into `create` or `update` unchanged.
+
+### Fixed
+- `templates().get` and `templates().list` no longer fail to deserialize drag-and-drop templates.
+
 ## [0.3.0]
 
 ### Changed

@@ -53,6 +53,88 @@ async fn list_asks_for_additional_fields_and_filters() -> Result {
     Ok(())
 }
 
+fn drag_and_drop_definition() -> Value {
+    json!({
+        "body": {
+            "sections": [{
+                "blocks": [
+                    {
+                        "type": "header",
+                        "desktop_layout": "stacked",
+                        "subblocks": [{ "type": "header_link_bar_logo", "links": [] }]
+                    },
+                    { "type": "future_block", "content": { "anything": [1, 2, 3] } }
+                ]
+            }]
+        },
+        "styles": []
+    })
+}
+
+#[tokio::test]
+async fn get_keeps_any_drag_and_drop_definition() -> Result {
+    let server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/api/templates/RipRmi"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {
+                "type": "template",
+                "id": "RipRmi",
+                "attributes": {
+                    "name": "Master",
+                    "editor_type": "SYSTEM_DRAGGABLE",
+                    "html": "<p>Hi</p>",
+                    "definition": drag_and_drop_definition()
+                },
+                "links": { "self": "https://a.klaviyo.com/api/templates/RipRmi" }
+            }
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let template = client(&server)?.templates().get("RipRmi").send().await?;
+
+    assert_eq!(
+        template.data.attributes.definition,
+        Some(drag_and_drop_definition())
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_sends_a_fetched_definition_unchanged() -> Result {
+    let server = MockServer::start().await;
+
+    Mock::given(method("PATCH"))
+        .and(path("/api/templates/RipRmi"))
+        .and(body_partial_json(json!({
+            "data": { "attributes": { "definition": drag_and_drop_definition() } }
+        })))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let request = types::TemplateUpdateHtmlOrDndQuery {
+        data: types::TemplateUpdateHtmlOrDndQueryResourceObject {
+            attributes: types::TemplateUpdateHtmlOrDndQueryResourceObjectAttributes {
+                definition: Some(drag_and_drop_definition()),
+                ..Default::default()
+            },
+            ..Default::default()
+        },
+    };
+    let result = client(&server)?
+        .templates()
+        .update("RipRmi", &request)
+        .send()
+        .await;
+    routed(result);
+    Ok(())
+}
+
 #[tokio::test]
 async fn update_sets_data_id_from_the_path() -> Result {
     let server = MockServer::start().await;
