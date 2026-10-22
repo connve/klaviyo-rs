@@ -168,13 +168,12 @@ impl<'a> Templates<'a> {
     /// `POST /api/template-universal-content` — create a universal content
     /// block.
     ///
-    /// Supported block types: `button`, `drop_shadow`, `horizontal_rule`,
-    /// `html`, `image`, `spacer`, `text`. See the [Klaviyo docs][docs].
+    /// Any block type, or a whole section. See the [Klaviyo docs][docs].
     ///
     /// [docs]: https://developers.klaviyo.com/en/reference/create_universal_content
     pub fn create_universal_content(
         &self,
-        request: &types::UniversalContentCreateQuery,
+        request: &types::UniversalContentCreateQueryV1,
     ) -> CreateUniversalContent<'a> {
         RequestBuilder::with_body(
             self.client,
@@ -186,6 +185,7 @@ impl<'a> Templates<'a> {
     /// `PATCH /api/template-universal-content/{id}` — update a universal
     /// content block.
     ///
+    /// A `definition` replaces the whole block; leave it out to only rename.
     /// `data.id` in the body is set to `content_id`. See the
     /// [Klaviyo docs][docs].
     ///
@@ -193,7 +193,7 @@ impl<'a> Templates<'a> {
     pub fn update_universal_content(
         &self,
         content_id: &str,
-        request: &types::UniversalContentPartialUpdateQuery,
+        request: &types::UniversalContentPartialUpdateQueryV1,
     ) -> UpdateUniversalContent<'a> {
         RequestBuilder::with_body(
             self.client,
@@ -246,21 +246,21 @@ pub type CloneTemplate<'a> =
 /// Builder for [`Templates::list_universal_content`].
 pub type ListUniversalContent<'a> = RequestBuilder<
     'a,
-    types::GetUniversalContentResponseCollection,
+    types::GetUniversalContentResponseV1Collection,
     operations::GetAllUniversalContent,
 >;
 
 /// Builder for [`Templates::get_universal_content`].
 pub type GetUniversalContent<'a> =
-    RequestBuilder<'a, types::GetUniversalContentResponse, operations::GetUniversalContent>;
+    RequestBuilder<'a, types::GetUniversalContentResponseV1, operations::GetUniversalContent>;
 
 /// Builder for [`Templates::create_universal_content`].
 pub type CreateUniversalContent<'a> =
-    RequestBuilder<'a, types::PostUniversalContentResponse, operations::CreateUniversalContent>;
+    RequestBuilder<'a, types::PostUniversalContentResponseV1, operations::CreateUniversalContent>;
 
 /// Builder for [`Templates::update_universal_content`].
 pub type UpdateUniversalContent<'a> =
-    RequestBuilder<'a, types::PatchUniversalContentResponse, operations::UpdateUniversalContent>;
+    RequestBuilder<'a, types::PatchUniversalContentResponseV1, operations::UpdateUniversalContent>;
 
 /// Builder for [`Templates::delete_universal_content`].
 pub type DeleteUniversalContent<'a> =

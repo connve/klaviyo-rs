@@ -13,11 +13,12 @@ type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[tokio::test]
 #[ignore = "needs a Klaviyo test account key in KLAVIYO_API_KEY"]
-async fn list_email_campaigns() -> Result {
+async fn list_campaigns() -> Result {
     let client = common::client()?;
     client
         .campaigns()
-        .list("equals(messages.channel,'email')")
+        .list()
+        .filter("equals(archived,false)")
         .page_size(5)
         .send()
         .await?;
@@ -26,12 +27,13 @@ async fn list_email_campaigns() -> Result {
 
 #[tokio::test]
 #[ignore = "needs a Klaviyo test account key in KLAVIYO_API_KEY"]
-async fn list_without_channel_filter_is_rejected() -> Result {
+async fn list_with_status_filter_is_rejected() -> Result {
     let client = common::client()?;
     ensure_rejected!(
         client
             .campaigns()
-            .list("equals(status,'Draft')")
+            .list()
+            .filter("equals(status,'Draft')")
             .send()
             .await
     );

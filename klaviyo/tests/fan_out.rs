@@ -1,5 +1,6 @@
 //! End-to-end test of the per-market flow in one account: a list and a
-//! template, then a draft campaign for the list with the template assigned.
+//! template, then a draft campaign for the list whose variation uses the
+//! template, set either at creation or with `update_variation` afterwards.
 //! Everything is deleted again, even when a check fails. Nothing is sent.
 //!
 //! Runs against the Klaviyo test account whose private API key is in
@@ -17,12 +18,28 @@ type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// Text put into the template and preview text, to recognise them later.
 const MARKER: &str = "klaviyo-rs fan-out marker";
 
-/// How often to look for the assigned template, one second apart.
+/// How often to look for the variation's template, one second apart.
 const TEMPLATE_ATTEMPTS: u32 = 10;
+
+#[derive(Clone, Copy)]
+enum Template {
+    AtCreation,
+    Updated,
+}
 
 #[tokio::test]
 #[ignore = "needs a Klaviyo test account key in KLAVIYO_API_KEY"]
-async fn draft_campaign_with_assigned_template() -> Result {
+async fn draft_campaign_with_variation_template() -> Result {
+    fan_out(Template::AtCreation).await
+}
+
+#[tokio::test]
+#[ignore = "needs a Klaviyo test account key in KLAVIYO_API_KEY"]
+async fn draft_campaign_with_updated_variation_template() -> Result {
+    fan_out(Template::Updated).await
+}
+
+async fn fan_out(how: Template) -> Result {
     let client = common::client()?;
     let name = unique_name!("fan-out");
 
@@ -56,7 +73,7 @@ async fn draft_campaign_with_assigned_template() -> Result {
         }
     };
 
-    let checks = draft_campaign(&client, &name, &list_id, &template_id).await;
+    let checks = draft_campaign(&client, &name, &list_id, &template_id, how).await;
 
     let template_cleanup = client.templates().delete(&template_id).send().await;
     let list_cleanup = client.lists().delete(&list_id).send().await;
@@ -66,36 +83,50 @@ async fn draft_campaign_with_assigned_template() -> Result {
     Ok(())
 }
 
-async fn draft_campaign(client: &Client, name: &str, list_id: &str, template_id: &str) -> Result {
-    let message = types::CampaignMessageCreateQueryResourceObject {
-        attributes: types::CampaignMessageCreateQueryResourceObjectAttributes {
-            definition: types::EmailMessageDefinition {
-                label: Some(name.to_owned()),
-                content: Some(types::EmailContent {
+async fn draft_campaign(
+    client: &Client,
+    name: &str,
+    list_id: &str,
+    template_id: &str,
+    how: Template,
+) -> Result {
+    let inline_template_id = match how {
+        Template::AtCreation => Some(template_id.to_owned()),
+        Template::Updated => None,
+    };
+    let variation = types::VariationInlineCreate {
+        definition: types::VariationDefinition {
+            name: Some(name.to_owned()),
+            details: Some(
+                types::EmailChannelDetails {
+                    channel: Some(types::EmailChannelDetailsChannel::Email),
                     subject: Some(name.to_owned()),
                     preview_text: Some(MARKER.to_owned()),
+                    template_id: inline_template_id,
                     ..Default::default()
-                }),
-                ..Default::default()
-            }
-            .into(),
+                }
+                .into(),
+            ),
         },
-        relationships: None,
-        type_: Default::default(),
     };
     let request = types::CampaignCreateQuery {
         data: types::CampaignCreateQueryResourceObject {
             attributes: types::CampaignCreateQueryResourceObjectAttributes {
-                name: name.to_owned(),
-                audiences: types::Audiences {
-                    included: vec![list_id.to_owned()],
-                    excluded: None,
+                definition: types::CampaignDefinition {
+                    name: Some(name.to_owned()),
+                    ..Default::default()
                 },
-                campaign_messages:
-                    types::CampaignCreateQueryResourceObjectAttributesCampaignMessages {
-                        data: vec![message],
-                    },
-                ..Default::default()
+                audiences: Some(vec![types::AudienceInlineCreate {
+                    temporary_id: "audience".to_owned(),
+                    included: Some(vec![list_id.to_owned()]),
+                    ..Default::default()
+                }]),
+                messages: Some(vec![types::MessageInlineCreate {
+                    audience_temporary_id: "audience".to_owned(),
+                    name: Some(name.to_owned()),
+                    variations: Some(vec![variation]),
+                    ..Default::default()
+                }]),
             },
             ..Default::default()
         },
@@ -106,28 +137,60 @@ async fn draft_campaign(client: &Client, name: &str, list_id: &str, template_id:
         let messages = client.campaigns().messages(&campaign_id).send().await?;
         let message = messages.data.first().ok_or("the campaign has no message")?;
 
-        ensure_rejected!(
+        if let Template::Updated = how {
+            let variations = client.campaigns().variations(&message.id).send().await?;
+            let variation = variations
+                .data
+                .first()
+                .ok_or("the message has no variation")?;
+            let request = types::VariationPartialUpdateQuery {
+                data: types::VariationPartialUpdateQueryResourceObject {
+                    attributes: types::VariationPartialUpdateQueryResourceObjectAttributes {
+                        definition: types::VariationDefinition {
+                            details: Some(
+                                types::EmailChannelDetails {
+                                    channel: Some(types::EmailChannelDetailsChannel::Email),
+                                    template_id: Some(template_id.to_owned()),
+                                    ..Default::default()
+                                }
+                                .into(),
+                            ),
+                            ..Default::default()
+                        },
+                    },
+                    ..Default::default()
+                },
+            };
             client
                 .campaigns()
-                .assign_template(&message.id, &unique_name!("template"))
+                .update_variation(&variation.id, &request)
                 .send()
-                .await
+                .await?;
+        }
+
+        let html = variation_template_html(client, &message.id).await?;
+        ensure!(html.contains(MARKER), "variation template: {html}");
+
+        let variations = client.campaigns().variations(&message.id).send().await?;
+        let subject = variations.data.first().and_then(|variation| {
+            match &variation.attributes.definition.details {
+                Some(types::VariationDefinitionDetails::EmailChannelDetails(details)) => {
+                    details.subject.clone()
+                }
+                _ => None,
+            }
+        });
+        ensure!(
+            subject.as_deref() == Some(name),
+            "variation subject {subject:?}"
         );
 
-        client
-            .campaigns()
-            .assign_template(&message.id, template_id)
-            .send()
-            .await?;
-        let html = assigned_template_html(client, &message.id).await?;
-        ensure!(html.contains(MARKER), "assigned template: {html}");
-
-        let campaign = client.campaigns().get(&campaign_id).send().await?;
+        let message = client.campaigns().get_message(&message.id).send().await?;
         ensure!(
-            campaign.data.attributes.status
-                == types::CampaignResponseObjectResourceAttributesStatus::Draft,
-            "campaign status {:?}",
-            campaign.data.attributes.status
+            message.data.attributes.definition.status
+                == Some(types::MessageDefinitionStatus::Draft),
+            "message status {:?}",
+            message.data.attributes.definition.status
         );
         Ok(())
     }
@@ -139,17 +202,35 @@ async fn draft_campaign(client: &Client, name: &str, list_id: &str, template_id:
     Ok(())
 }
 
-async fn assigned_template_html(client: &Client, message_id: &str) -> Result<String> {
+async fn variation_template_html(client: &Client, message_id: &str) -> Result<String> {
     for _ in 0..TEMPLATE_ATTEMPTS {
-        let assigned = client
+        let message = client
             .campaigns()
-            .message_template(message_id)
+            .get_message(message_id)
+            .include(&["campaign-variations"])
             .send()
             .await?;
-        match assigned.data {
-            Some(template) => return Ok(template.attributes.html),
+        match variation_template_id(&message) {
+            Some(template_id) => {
+                let template = client.templates().get(&template_id).send().await?;
+                return Ok(template.data.attributes.html);
+            }
             None => tokio::time::sleep(Duration::from_secs(1)).await,
         }
     }
-    Err(format!("the message has no template after {TEMPLATE_ATTEMPTS} attempts").into())
+    Err(format!("the variation has no template after {TEMPLATE_ATTEMPTS} attempts").into())
+}
+
+fn variation_template_id(message: &types::GetMessageResponseCompoundDocument) -> Option<String> {
+    message.included.iter().find_map(|item| match item {
+        types::GetMessageResponseCompoundDocumentIncludedItem::VariationResponseObjectResource(
+            variation,
+        ) => match &variation.attributes.definition.details {
+            Some(types::VariationDefinitionDetails::EmailChannelDetails(details)) => {
+                details.template_id.clone()
+            }
+            _ => None,
+        },
+        _ => None,
+    })
 }

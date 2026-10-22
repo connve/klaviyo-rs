@@ -1,11 +1,12 @@
-//! Campaigns, campaign messages, template assignment, send jobs, and
-//! recipient estimates.
+//! Campaigns, campaign messages and variations, send jobs, and recipient
+//! estimates.
 //!
-//! A campaign is created as a draft with its messages; assigning a template
-//! copies it into a message. Sends can't be undone.
+//! A campaign is created as a draft with its audiences, messages, and
+//! variations; a variation holds the subject, sender, and template. Sends
+//! can't be undone.
 //!
 //! ```no_run
-//! use klaviyo::Client;
+//! use klaviyo::{types, Client};
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -13,26 +14,48 @@
 //!     .api_key(std::env::var("KLAVIYO_API_KEY")?)
 //!     .build()?;
 //!
-//! let drafts = client
+//! let campaigns = client
 //!     .campaigns()
-//!     .list("and(equals(messages.channel,'email'),equals(status,'Draft'))")
+//!     .list()
+//!     .filter("equals(archived,false)")
 //!     .sort("-created_at")
 //!     .send()
 //!     .await?;
 //!
-//! for campaign in &drafts.data {
-//!     println!("draft campaign {}", campaign.id);
+//! for campaign in &campaigns.data {
+//!     println!("campaign {}", campaign.id);
 //! }
 //!
-//! // Copy a template into the first message of a campaign.
+//! // Point the first variation of a campaign's first message at a template.
 //! let campaign_id = "01JABCDEF";
 //! let messages = client.campaigns().messages(campaign_id).send().await?;
 //! if let Some(message) = messages.data.first() {
-//!     client
-//!         .campaigns()
-//!         .assign_template(&message.id, "RipRmi")
-//!         .send()
-//!         .await?;
+//!     let variations = client.campaigns().variations(&message.id).send().await?;
+//!     if let Some(variation) = variations.data.first() {
+//!         let request = types::VariationPartialUpdateQuery {
+//!             data: types::VariationPartialUpdateQueryResourceObject {
+//!                 attributes: types::VariationPartialUpdateQueryResourceObjectAttributes {
+//!                     definition: types::VariationDefinition {
+//!                         details: Some(
+//!                             types::EmailChannelDetails {
+//!                                 channel: Some(types::EmailChannelDetailsChannel::Email),
+//!                                 template_id: Some("RipRmi".to_owned()),
+//!                                 ..Default::default()
+//!                             }
+//!                             .into(),
+//!                         ),
+//!                         ..Default::default()
+//!                     },
+//!                 },
+//!                 ..Default::default()
+//!             },
+//!         };
+//!         client
+//!             .campaigns()
+//!             .update_variation(&variation.id, &request)
+//!             .send()
+//!             .await?;
+//!     }
 //! }
 //! # Ok(())
 //! # }
@@ -57,13 +80,11 @@ impl<'a> Campaigns<'a> {
 
     /// `GET /api/campaigns` — list campaigns.
     ///
-    /// Klaviyo requires a channel in `filter`, e.g.
-    /// `equals(messages.channel,'email')`; add conditions with `and(...)`.
     /// Up to 100 per page. See the [Klaviyo docs][docs].
     ///
     /// [docs]: https://developers.klaviyo.com/en/reference/get_campaigns
-    pub fn list(&self, filter: &str) -> ListCampaigns<'a> {
-        RequestBuilder::new(self.client, operations::GetCampaigns::path()).query("filter", filter)
+    pub fn list(&self) -> ListCampaigns<'a> {
+        RequestBuilder::new(self.client, operations::GetCampaigns::path())
     }
 
     /// `GET /api/campaigns/{id}` — get one campaign.
@@ -75,9 +96,11 @@ impl<'a> Campaigns<'a> {
         RequestBuilder::new(self.client, operations::GetCampaign::path(campaign_id))
     }
 
-    /// `POST /api/campaigns` — create a draft campaign with its messages.
+    /// `POST /api/campaigns` — create a draft campaign with its audiences,
+    /// messages, and variations.
     ///
-    /// See the [Klaviyo docs][docs].
+    /// Set `channel` in each variation's `details`: Klaviyo reads details
+    /// without one as email. See the [Klaviyo docs][docs].
     ///
     /// [docs]: https://developers.klaviyo.com/en/reference/create_campaign
     pub fn create(&self, request: &types::CampaignCreateQuery) -> CreateCampaign<'a> {
@@ -88,8 +111,8 @@ impl<'a> Campaigns<'a> {
         )
     }
 
-    /// `PATCH /api/campaigns/{id}` — update a campaign's name, audiences,
-    /// send strategy, or options.
+    /// `PATCH /api/campaigns/{id}` — update a campaign's definition: name,
+    /// archived flag, and send settings.
     ///
     /// `data.id` in the body is set to `campaign_id`. See the
     /// [Klaviyo docs][docs].
@@ -121,7 +144,7 @@ impl<'a> Campaigns<'a> {
     /// `data.id` in the body is set to `campaign_id`, the campaign to copy.
     /// See the [Klaviyo docs][docs].
     ///
-    /// [docs]: https://developers.klaviyo.com/en/reference/create_campaign_clone
+    /// [docs]: https://developers.klaviyo.com/en/reference/clone_campaign
     pub fn clone_campaign(
         &self,
         campaign_id: &str,
@@ -129,7 +152,7 @@ impl<'a> Campaigns<'a> {
     ) -> CloneCampaign<'a> {
         RequestBuilder::with_body(
             self.client,
-            operations::CreateCampaignClone::path(),
+            operations::CloneCampaign::path(),
             json_body(request, Some(campaign_id)),
         )
     }
@@ -159,17 +182,19 @@ impl<'a> Campaigns<'a> {
         )
     }
 
-    /// `PATCH /api/campaign-messages/{id}` — update a message's label and
-    /// content, such as the subject line, preview text, and sender.
+    /// `PATCH /api/campaign-messages/{id}` — update a message's name,
+    /// tracking and send options, and A/B test settings.
     ///
-    /// `data.id` in the body is set to `message_id`. See the
+    /// The subject line, preview text, and sender belong to the message's
+    /// variations, not the message. `data.id` in the body is set to
+    /// `message_id`. See the
     /// [Klaviyo docs][docs].
     ///
     /// [docs]: https://developers.klaviyo.com/en/reference/update_campaign_message
     pub fn update_message(
         &self,
         message_id: &str,
-        request: &types::CampaignMessagePartialUpdateQuery,
+        request: &types::MessagePartialUpdateQuery,
     ) -> UpdateCampaignMessage<'a> {
         RequestBuilder::with_body(
             self.client,
@@ -178,48 +203,35 @@ impl<'a> Campaigns<'a> {
         )
     }
 
-    /// `POST /api/campaign-message-assign-template` — copy a template into a
-    /// campaign message.
-    ///
-    /// Later edits to the template don't reach the message. See the
-    /// [Klaviyo docs][docs].
-    ///
-    /// [docs]: https://developers.klaviyo.com/en/reference/assign_template_to_campaign_message
-    pub fn assign_template(&self, message_id: &str, template_id: &str) -> AssignTemplate<'a> {
-        let request = types::CampaignMessageAssignTemplateQuery {
-            data: types::CampaignMessageAssignTemplateQueryResourceObject {
-                id: message_id.to_owned(),
-                relationships: types::CampaignMessageAssignTemplateQueryResourceObjectRelationships {
-                    template:
-                        types::CampaignMessageAssignTemplateQueryResourceObjectRelationshipsTemplate {
-                            data: Some(
-                                types::CampaignMessageAssignTemplateQueryResourceObjectRelationshipsTemplateData {
-                                    id: template_id.to_owned(),
-                                    type_: Default::default(),
-                                },
-                            ),
-                        },
-                },
-                type_: Default::default(),
-            },
-        };
-        RequestBuilder::with_body(
-            self.client,
-            operations::AssignTemplateToCampaignMessage::path(),
-            json_body(&request, None),
-        )
-    }
-
-    /// `GET /api/campaign-messages/{id}/template` — the template assigned to
-    /// a campaign message.
+    /// `GET /api/campaign-messages/{id}/campaign-variations` — the variations
+    /// of a campaign message.
     ///
     /// See the [Klaviyo docs][docs].
     ///
-    /// [docs]: https://developers.klaviyo.com/en/reference/get_template_for_campaign_message
-    pub fn message_template(&self, message_id: &str) -> GetCampaignMessageTemplate<'a> {
+    /// [docs]: https://developers.klaviyo.com/en/reference/get_variations_for_campaign_message
+    pub fn variations(&self, message_id: &str) -> ListCampaignVariations<'a> {
         RequestBuilder::new(
             self.client,
-            operations::GetTemplateForCampaignMessage::path(message_id),
+            operations::GetVariationsForCampaignMessage::path(message_id),
+        )
+    }
+
+    /// `PATCH /api/campaign-variations/{id}` — update a variation's name and
+    /// channel details, such as the subject line, sender, and template.
+    ///
+    /// `data.id` in the body is set to `variation_id`. See the
+    /// [Klaviyo docs][docs].
+    ///
+    /// [docs]: https://developers.klaviyo.com/en/reference/update_campaign_variation
+    pub fn update_variation(
+        &self,
+        variation_id: &str,
+        request: &types::VariationPartialUpdateQuery,
+    ) -> UpdateCampaignVariation<'a> {
+        RequestBuilder::with_body(
+            self.client,
+            operations::UpdateCampaignVariation::path(variation_id),
+            json_body(request, Some(variation_id)),
         )
     }
 
@@ -330,57 +342,54 @@ impl<'a> Campaigns<'a> {
 /// Builder for [`Campaigns::list`].
 pub type ListCampaigns<'a> = RequestBuilder<
     'a,
-    types::GetCampaignResponseCollectionCompoundDocument,
+    types::GetOmniCampaignResponseCollectionCompoundDocument,
     operations::GetCampaigns,
 >;
 
 /// Builder for [`Campaigns::get`].
 pub type GetCampaign<'a> =
-    RequestBuilder<'a, types::GetCampaignResponseCompoundDocument, operations::GetCampaign>;
+    RequestBuilder<'a, types::GetOmniCampaignResponseCompoundDocument, operations::GetCampaign>;
 
 /// Builder for [`Campaigns::create`].
 pub type CreateCampaign<'a> =
-    RequestBuilder<'a, types::PostCampaignResponse, operations::CreateCampaign>;
+    RequestBuilder<'a, types::PostOmniCampaignResponse, operations::CreateCampaign>;
 
 /// Builder for [`Campaigns::update`].
 pub type UpdateCampaign<'a> =
-    RequestBuilder<'a, types::PatchCampaignResponse, operations::UpdateCampaign>;
+    RequestBuilder<'a, types::PatchOmniCampaignResponse, operations::UpdateCampaign>;
 
 /// Builder for [`Campaigns::delete`].
 pub type DeleteCampaign<'a> = RequestBuilder<'a, NoContent, operations::DeleteCampaign>;
 
 /// Builder for [`Campaigns::clone_campaign`].
 pub type CloneCampaign<'a> =
-    RequestBuilder<'a, types::PostCampaignResponse, operations::CreateCampaignClone>;
+    RequestBuilder<'a, types::PostOmniCampaignResponse, operations::CloneCampaign>;
 
 /// Builder for [`Campaigns::messages`].
 pub type ListCampaignMessages<'a> = RequestBuilder<
     'a,
-    types::GetCampaignMessageResponseCollectionCompoundDocument,
+    types::GetMessageResponseCollectionCompoundDocument,
     operations::GetMessagesForCampaign,
 >;
 
 /// Builder for [`Campaigns::get_message`].
-pub type GetCampaignMessage<'a> = RequestBuilder<
-    'a,
-    types::GetCampaignMessageResponseCompoundDocument,
-    operations::GetCampaignMessage,
->;
+pub type GetCampaignMessage<'a> =
+    RequestBuilder<'a, types::GetMessageResponseCompoundDocument, operations::GetCampaignMessage>;
 
 /// Builder for [`Campaigns::update_message`].
 pub type UpdateCampaignMessage<'a> =
-    RequestBuilder<'a, types::PatchCampaignMessageResponse, operations::UpdateCampaignMessage>;
+    RequestBuilder<'a, types::PatchMessageResponse, operations::UpdateCampaignMessage>;
 
-/// Builder for [`Campaigns::assign_template`].
-pub type AssignTemplate<'a> = RequestBuilder<
+/// Builder for [`Campaigns::variations`].
+pub type ListCampaignVariations<'a> = RequestBuilder<
     'a,
-    types::PostCampaignMessageResponse,
-    operations::AssignTemplateToCampaignMessage,
+    types::GetVariationResponseCollection,
+    operations::GetVariationsForCampaignMessage,
 >;
 
-/// Builder for [`Campaigns::message_template`].
-pub type GetCampaignMessageTemplate<'a> =
-    RequestBuilder<'a, types::GetTemplateResponse, operations::GetTemplateForCampaignMessage>;
+/// Builder for [`Campaigns::update_variation`].
+pub type UpdateCampaignVariation<'a> =
+    RequestBuilder<'a, types::PatchVariationResponse, operations::UpdateCampaignVariation>;
 
 /// Builder for [`Campaigns::send`].
 pub type SendCampaign<'a> =

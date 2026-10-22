@@ -113,54 +113,47 @@ async fn fan_out(
     let template_id = upsert_template(&client, &name, &html, &text).await?;
     let list_id = find_list(&client, &market.list_name).await?;
 
-    let message = types::CampaignMessageCreateQueryResourceObject {
-        attributes: types::CampaignMessageCreateQueryResourceObjectAttributes {
-            definition: types::EmailMessageDefinition {
-                label: Some(name.clone()),
-                content: Some(types::EmailContent {
+    let variation = types::VariationInlineCreate {
+        definition: types::VariationDefinition {
+            name: Some(name.clone()),
+            details: Some(
+                types::EmailChannelDetails {
+                    channel: Some(types::EmailChannelDetailsChannel::Email),
                     subject: Some(market.subject.clone()),
                     preview_text: Some(market.preview_text.clone()),
                     from_email: Some(config.from_email.clone()),
                     from_label: Some(config.from_label.clone()),
+                    template_id: Some(template_id),
                     ..Default::default()
-                }),
-                ..Default::default()
-            }
-            .into(),
+                }
+                .into(),
+            ),
         },
-        relationships: None,
-        type_: Default::default(),
     };
     let request = types::CampaignCreateQuery {
         data: types::CampaignCreateQueryResourceObject {
             attributes: types::CampaignCreateQueryResourceObjectAttributes {
-                name,
-                audiences: types::Audiences {
-                    included: vec![list_id],
-                    excluded: None,
+                definition: types::CampaignDefinition {
+                    name: Some(name.clone()),
+                    ..Default::default()
                 },
-                campaign_messages:
-                    types::CampaignCreateQueryResourceObjectAttributesCampaignMessages {
-                        data: vec![message],
-                    },
-                ..Default::default()
+                audiences: Some(vec![types::AudienceInlineCreate {
+                    temporary_id: "audience".to_owned(),
+                    included: Some(vec![list_id]),
+                    ..Default::default()
+                }]),
+                messages: Some(vec![types::MessageInlineCreate {
+                    audience_temporary_id: "audience".to_owned(),
+                    name: Some(name),
+                    variations: Some(vec![variation]),
+                    ..Default::default()
+                }]),
             },
             ..Default::default()
         },
     };
     let campaign = client.campaigns().create(&request).send().await?;
-    let campaign_id = campaign.data.id;
-
-    let messages = client.campaigns().messages(&campaign_id).send().await?;
-    for message in &messages.data {
-        client
-            .campaigns()
-            .assign_template(&message.id, &template_id)
-            .send()
-            .await?;
-    }
-
-    Ok(campaign_id)
+    Ok(campaign.data.id)
 }
 
 /// A client for the account whose private API key is in `api_key_env`.

@@ -89,7 +89,7 @@ marker's traits:
 - For a body whose `data.id` must match the path, use
   `http::json_body(&body, Some(id))`.
 - When a body holds only IDs, take the IDs and build it from the generated
-  types (`assign_template`, `send`, `add_profiles`).
+  types (`send`, `add_profiles`).
 - Reserved headers: `Authorization`, `revision`, `Content-Type`,
   `Content-Length`, `Transfer-Encoding`, `Accept`, `Host`, `User-Agent`.
 

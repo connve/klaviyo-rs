@@ -8,7 +8,9 @@ use std::time::Duration;
 use klaviyo::header::{HeaderMap, HeaderValue};
 use klaviyo::{types, Client, Error, API_REVISION};
 use serde_json::json;
-use wiremock::matchers::{body_json, body_partial_json, header, method, path, query_param};
+use wiremock::matchers::{
+    body_json, body_partial_json, header, method, path, query_param, query_param_is_missing,
+};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -38,10 +40,13 @@ async fn list_sends_auth_revision_and_filter() -> Result {
         .and(header("authorization", "Klaviyo-API-Key pk_test"))
         .and(header("revision", API_REVISION))
         .and(header("accept", "application/vnd.api+json"))
-        .and(query_param("filter", "equals(messages.channel,'email')"))
+        .and(query_param("filter", "equals(archived,false)"))
         .and(query_param("sort", "-created_at"))
-        .and(query_param("fields[campaign]", "name,status"))
-        .and(query_param("include", "campaign-messages"))
+        .and(query_param("fields[campaign]", "definition.name"))
+        .and(query_param(
+            "include",
+            "campaign-audiences,campaign-messages",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": [],
             "links": { "self": "https://a.klaviyo.com/api/campaigns" }
@@ -52,10 +57,11 @@ async fn list_sends_auth_revision_and_filter() -> Result {
 
     let response = client(&server)?
         .campaigns()
-        .list("equals(messages.channel,'email')")
+        .list()
+        .filter("equals(archived,false)")
         .sort("-created_at")
-        .fields("campaign", &["name", "status"])
-        .include(&["campaign-messages"])
+        .fields("campaign", &["definition.name"])
+        .include(&["campaign-audiences", "campaign-messages"])
         .send()
         .await?;
 
@@ -64,15 +70,12 @@ async fn list_sends_auth_revision_and_filter() -> Result {
 }
 
 #[tokio::test]
-async fn filter_replaces_the_required_channel_filter() -> Result {
+async fn list_sends_no_filter_unless_asked() -> Result {
     let server = MockServer::start().await;
 
     Mock::given(method("GET"))
         .and(path("/api/campaigns"))
-        .and(query_param(
-            "filter",
-            "and(equals(messages.channel,'sms'),equals(status,'Draft'))",
-        ))
+        .and(query_param_is_missing("filter"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "data": [],
             "links": { "self": "https://a.klaviyo.com/api/campaigns" }
@@ -81,12 +84,7 @@ async fn filter_replaces_the_required_channel_filter() -> Result {
         .mount(&server)
         .await;
 
-    client(&server)?
-        .campaigns()
-        .list("equals(messages.channel,'email')")
-        .filter("and(equals(messages.channel,'sms'),equals(status,'Draft'))")
-        .send()
-        .await?;
+    client(&server)?.campaigns().list().send().await?;
     Ok(())
 }
 
@@ -157,17 +155,42 @@ async fn delete_accepts_an_empty_204() -> Result {
 }
 
 #[tokio::test]
-async fn assign_template_sends_the_relationship_document() -> Result {
+async fn variations_lists_the_message_variations() -> Result {
     let server = MockServer::start().await;
 
-    Mock::given(method("POST"))
-        .and(path("/api/campaign-message-assign-template"))
+    Mock::given(method("GET"))
+        .and(path(
+            "/api/campaign-messages/01JMESSAGE/campaign-variations",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "data": [] })))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let response = client(&server)?
+        .campaigns()
+        .variations("01JMESSAGE")
+        .send()
+        .await?;
+
+    assert!(response.data.is_empty());
+    Ok(())
+}
+
+#[tokio::test]
+async fn update_variation_sends_only_the_given_details() -> Result {
+    let server = MockServer::start().await;
+
+    Mock::given(method("PATCH"))
+        .and(path("/api/campaign-variations/01JVARIATION"))
         .and(body_json(json!({
             "data": {
-                "type": "campaign-message",
-                "id": "01JMESSAGE",
-                "relationships": {
-                    "template": { "data": { "type": "template", "id": "RipRmi" } }
+                "type": "campaign-variation",
+                "id": "01JVARIATION",
+                "attributes": {
+                    "definition": {
+                        "details": { "channel": "email", "template_id": "RipRmi" }
+                    }
                 }
             }
         })))
@@ -176,9 +199,27 @@ async fn assign_template_sends_the_relationship_document() -> Result {
         .mount(&server)
         .await;
 
+    let request = types::VariationPartialUpdateQuery {
+        data: types::VariationPartialUpdateQueryResourceObject {
+            attributes: types::VariationPartialUpdateQueryResourceObjectAttributes {
+                definition: types::VariationDefinition {
+                    details: Some(
+                        types::EmailChannelDetails {
+                            channel: Some(types::EmailChannelDetailsChannel::Email),
+                            template_id: Some("RipRmi".to_owned()),
+                            ..Default::default()
+                        }
+                        .into(),
+                    ),
+                    ..Default::default()
+                },
+            },
+            ..Default::default()
+        },
+    };
     let result = client(&server)?
         .campaigns()
-        .assign_template("01JMESSAGE", "RipRmi")
+        .update_variation("01JVARIATION", &request)
         .send()
         .await;
     routed(result);
