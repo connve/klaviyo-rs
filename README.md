@@ -15,7 +15,7 @@ Unofficial Rust SDK for Klaviyo APIs.
 
 ```toml
 [dependencies]
-klaviyo = { version = "0.2", features = ["campaigns", "profiles"] }
+klaviyo = { version = "0.3", features = ["campaigns", "profiles"] }
 ```
 
 ```rust
@@ -26,12 +26,12 @@ let client = klaviyo::Client::builder()
 
 ## Coverage
 
-API revision `2026-07-15`.
+API revision `2026-10-15`.
 
 | API | Feature | Methods |
 | --- | --- | --- |
 | Accounts | `accounts` | [`list`](https://developers.klaviyo.com/en/reference/get_accounts), [`get`](https://developers.klaviyo.com/en/reference/get_account) |
-| Campaigns | `campaigns` | [`list`](https://developers.klaviyo.com/en/reference/get_campaigns), [`get`](https://developers.klaviyo.com/en/reference/get_campaign), [`create`](https://developers.klaviyo.com/en/reference/create_campaign), [`update`](https://developers.klaviyo.com/en/reference/update_campaign), [`delete`](https://developers.klaviyo.com/en/reference/delete_campaign), [`clone_campaign`](https://developers.klaviyo.com/en/reference/create_campaign_clone), [`messages`](https://developers.klaviyo.com/en/reference/get_messages_for_campaign), [`get_message`](https://developers.klaviyo.com/en/reference/get_campaign_message), [`update_message`](https://developers.klaviyo.com/en/reference/update_campaign_message), [`assign_template`](https://developers.klaviyo.com/en/reference/assign_template_to_campaign_message), [`message_template`](https://developers.klaviyo.com/en/reference/get_template_for_campaign_message), [`send`](https://developers.klaviyo.com/en/reference/send_campaign), [`get_send_job`](https://developers.klaviyo.com/en/reference/get_campaign_send_job), [`cancel_send`](https://developers.klaviyo.com/en/reference/cancel_campaign_send), [`refresh_recipient_estimation`](https://developers.klaviyo.com/en/reference/refresh_campaign_recipient_estimation), [`get_recipient_estimation_job`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation_job), [`get_recipient_estimation`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation) |
+| Campaigns | `campaigns` | [`list`](https://developers.klaviyo.com/en/reference/get_campaigns), [`get`](https://developers.klaviyo.com/en/reference/get_campaign), [`create`](https://developers.klaviyo.com/en/reference/create_campaign), [`update`](https://developers.klaviyo.com/en/reference/update_campaign), [`delete`](https://developers.klaviyo.com/en/reference/delete_campaign), [`clone_campaign`](https://developers.klaviyo.com/en/reference/clone_campaign), [`messages`](https://developers.klaviyo.com/en/reference/get_messages_for_campaign), [`get_message`](https://developers.klaviyo.com/en/reference/get_campaign_message), [`update_message`](https://developers.klaviyo.com/en/reference/update_campaign_message), [`variations`](https://developers.klaviyo.com/en/reference/get_variations_for_campaign_message), [`update_variation`](https://developers.klaviyo.com/en/reference/update_campaign_variation), [`send`](https://developers.klaviyo.com/en/reference/send_campaign), [`get_send_job`](https://developers.klaviyo.com/en/reference/get_campaign_send_job), [`cancel_send`](https://developers.klaviyo.com/en/reference/cancel_campaign_send), [`refresh_recipient_estimation`](https://developers.klaviyo.com/en/reference/refresh_campaign_recipient_estimation), [`get_recipient_estimation_job`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation_job), [`get_recipient_estimation`](https://developers.klaviyo.com/en/reference/get_campaign_recipient_estimation) |
 | Events | `events` | [`list`](https://developers.klaviyo.com/en/reference/get_events), [`get`](https://developers.klaviyo.com/en/reference/get_event), [`create`](https://developers.klaviyo.com/en/reference/create_event), [`bulk_create`](https://developers.klaviyo.com/en/reference/bulk_create_events) |
 | Flows | `flows` | [`list`](https://developers.klaviyo.com/en/reference/get_flows), [`get`](https://developers.klaviyo.com/en/reference/get_flow), [`update`](https://developers.klaviyo.com/en/reference/update_flow) |
 | Lists | `lists` | [`list`](https://developers.klaviyo.com/en/reference/get_lists), [`get`](https://developers.klaviyo.com/en/reference/get_list), [`create`](https://developers.klaviyo.com/en/reference/create_list), [`update`](https://developers.klaviyo.com/en/reference/update_list), [`delete`](https://developers.klaviyo.com/en/reference/delete_list), [`profiles`](https://developers.klaviyo.com/en/reference/get_profiles_for_list), [`add_profiles`](https://developers.klaviyo.com/en/reference/add_profiles_to_list), [`remove_profiles`](https://developers.klaviyo.com/en/reference/remove_profiles_from_list) |

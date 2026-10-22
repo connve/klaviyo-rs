@@ -3,7 +3,7 @@ resolver = "3"
 members = ["klaviyo", "generated/klaviyo"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 authors = ["CONNVE"]
 license = "MPL-2.0"
 edition = "2021"
@@ -25,7 +25,7 @@ allow_attributes = "deny"
 allow_attributes_without_reason = "deny"
 
 [workspace.dependencies]
-klaviyo_generated = { path = "generated/klaviyo", version = "=0.2.0" }
+klaviyo_generated = { path = "generated/klaviyo", version = "=0.3.0" }
 tokio = { version = "1.48", default-features = false, features = [
     "macros",
     "rt-multi-thread",
